@@ -2,6 +2,8 @@
 
 **A Processing library to load, playback and display image sequences**
 
+![preview](https://raw.githubusercontent.com/orgicus/image-sequence-player/master/preview.gif)
+
 There already is a gifAnimation library that loads, plays back and exports .gif animation,
 however there are cases where finer control is needed, such as:
 
