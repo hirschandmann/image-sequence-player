@@ -13,6 +13,35 @@ however there are cases where finer control is needed, such as:
 
 Contributions welcome.
 
+### Minimal Example:
+
+```processing
+// import library
+import com.hirschandmann.image.*;
+// create a reference to an image sequence
+ISPlayer player;
+
+void setup() {
+  size(640, 360);
+  // create instance and load all valid images from the data/PT_Teddy folder
+  player = new ISPlayer(this,dataPath("name-of-image-folder-in-data"));
+}
+
+void draw() {
+  // clear background with yellow
+  background(255, 204, 0);
+  // render image sequence, ISPlayer extends PImage, use it as such
+  image(player,mouseX,mouseY);
+}
+
+// image sequence events
+// all frames loaded
+void onSequenceLoaded(ISPlayer player){
+  println(player+" sequence fully loaded");
+  player.loop();
+}
+```
+
 ## Credits
 
 The library is heavily influenced by [Patrick Meister's gifAnimation library](https://github.com/extrapixel/gif-animation)
