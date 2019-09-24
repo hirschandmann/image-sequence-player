@@ -17,38 +17,52 @@ import processing.data.JSONObject;
  */
 public class ISPlayer extends PImage implements PConstants,Runnable {
     
-	// 
+	// look up table of supported image formats
 	private static HashMap<String,Boolean> formats;
-	
+	// parent sketch
 	private PApplet parent;
-    private Thread runner;
-    
+	// thread
+    private Thread playbackThread;
+    // internal flag to resize this PImage instance based on the first loaded frame 
     private boolean resized;
-    
+    // playback flag
     private boolean isPlaying;
+    // looping flag
     private boolean isLooping;
-    
+    // total number of farmes
     private int numFrames;
+    // total number of pixels
+    private int numPixels;
+    // current frame index (0 to length-1 )
     private int currentFrame;
+    // loaded PImage frames
     private PImage[] frames;
-    
-    private int lastUpdate;
-    
+    // default playback rate (~30fps)
     private int delay = (int)(1000/30.0);//!rounded down
-    
-    private boolean finishedPlaying,firstFrameLoaded,loading;
+    // finished showing last frame flag
+    private boolean finishedPlaying;
+    // first frame loaded flag
+    private boolean firstFrameLoaded;
+    // sequence still loading flag
+    private boolean loading;
+    // current load progress
     private float loadProgress;
     
+    // main sketch callbacks
     private Method onFirstFrameLoadedMethod;
     private Method onSequenceLoadedMethod;
     private Method onSequencePlayedMethod;
-    
+    // animation name (typically loaded image sequence folder name)
     private String name;
-    
+    // thread running flag
     private boolean isThreadRunning;
-
+    // pretty-print library version
     public final static String VERSION = "##library.prettyVersion##";
-
+    
+    /**
+     * instantiate empty image sequence player 
+     * @param sketch
+     */
     public ISPlayer(PApplet sketch){
         super(1, 1, ARGB);
         this.parent = sketch;
@@ -60,11 +74,19 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
         this.onSequencePlayedMethod = findCallback("onSequencePlayed",ISPlayer.class);
     }
 
+    /**
+     * instantiate image sequence player and load supported images from folder
+     * @param sketch
+     * @param folderPath
+     */
     public ISPlayer(PApplet sketch,String folderPath){
         this(sketch);
         init(folderPath);
     }
     
+    /**
+     * setup look-up table of supported formats
+     */
     private void setupFormatsLUT(){
     	if(ISPlayer.formats == null){
     		ISPlayer.formats = new HashMap<String,Boolean>();
@@ -77,7 +99,11 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
             ISPlayer.formats.put("gif",true);
     	}
     }
-
+    
+    /**
+     * Initialise an existing player with a different folder path 
+     * @param folderPath
+     */
     public void init(String folderPath){
     	File dir = new File(folderPath);
     	
@@ -119,16 +145,10 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
             frames[i] = parent.requestImage(paths.get(i));
         }
         
-        
-        lastUpdate = parent.millis();
-        
         loading = true;
         firstFrameLoaded = false;
         // start thread
-        isThreadRunning = true;
-        runner = new Thread(this);
-        runner.setName("[ISPlayer - " + name + "]");
-        runner.start();
+        restartThread();
     }
     
     /**
@@ -139,38 +159,47 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
      */
     public void init(PImage[] images, String name){
         clean();
+        stop();
         
         this.name = name;
         frames = images.clone();
         numFrames = images.length;
 
-        //TODO: check if running twice on the same instance works
-        isThreadRunning = true;
-        runner = new Thread(this);
-        runner.setName("[ISPlayer - " + name + "]");
-        runner.start();
-        
-        lastUpdate = parent.millis();
+        restartThread();
         
         loading = true;
         firstFrameLoaded = false;
     }
     
+    private void restartThread(){
+    	//check if already running and stop first
+        if(playbackThread != null){
+        	playbackThread.interrupt();
+        	playbackThread = null;
+        }
+        // (re)start thread
+        isThreadRunning = true;
+        playbackThread = new Thread(this);
+        playbackThread.setName("[ISPlayer - " + name + "]");
+        playbackThread.start();
+    }
+    
+    /**
+     * check if all frames have fully loaded and dispatch events depending on the state
+     */
     private void checkLoaded(){
     	
         int numFramesLoaded = 0;
-        
+        // for each frame
         for(int i = 0; i < numFrames; i++){
         	
+        	// if there is a frame to check
             if(frames[i] != null){
             	
-              if(frames[i].isLoaded()){
-            	  numFramesLoaded++;
-              }
-              
+              // frames[i].isLoaded() sometimes returns true even before the image has fully initialized, using dimensions instead
               if(frames[i].width > 0 && frames[i].height > 0) {
                     numFramesLoaded++;
-                    
+                    // dispatch first frame loaded if callback is defined
                     if(!firstFrameLoaded && i == 0){
                         firstFrameLoaded = true;
                         
@@ -188,11 +217,11 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
               	}
             }
         }
-        
+        // have all frames fully loaded ? yes or no
         loading = (numFramesLoaded != numFrames);
-        
+        // how much have they loaded ?
         loadProgress = (float)numFramesLoaded / numFrames;
-        
+        // if loading is complete and there's a callback, notify parent sketch
         if(!loading && onSequenceLoadedMethod != null){
         	
         	// try to call main sketch
@@ -208,76 +237,81 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
         
     }
     
+    /**
+     * handled by internal thread, don't call manually
+     */
     public void run() {
     	
         while (isThreadRunning) {
-        	
+        	// wait based on set frame rate
             try {
                 Thread.sleep(delay);
             } catch (InterruptedException e) {}
-            
+            // check if still loading
             if(loading){
             	checkLoaded();
             }
-            
+            // if playback is attempted with no frames, exit
             if(frames == null || frames.length == 0){
             	System.err.println("no frames loaded, use init() to run again with a different image sequence");
             	isThreadRunning = false;
             	stop();
             	return;
             }
-            
+            // to adjust width/height properties, reset this PImage to the first frame (assumes all frames have same dimensions)
             if(!resized){
                 if(frames[0].width > 0 && frames[0].height > 0){
                     super.init(frames[0].width, frames[0].height, ARGB);
+                    numPixels = width * height;
                     resized = true;
                 }
             }
-            
+            // if playing back
             if (isPlaying) {
-//                if (parent.millis() - lastUpdate >= delay) {
+                // is this the last frame ?	
+                finishedPlaying = (currentFrame == numFrames - 1);
+                // if so
+                if (finishedPlaying) {
+                    // as long as there's a callback, try to call it
+                	if(onSequencePlayedMethod != null){
+                		
+                		// try to call main sketch
+            			try {
+            				onSequencePlayedMethod.invoke(parent, this);
+            			}catch (Exception e) {
+            				System.err.println("Error, disabling onSequencePlayed()");
+            				System.err.println(e.getLocalizedMessage());
+            				onSequencePlayedMethod = null;
+            			}
+                		
+                	}
                 	
-                    finishedPlaying = (currentFrame == numFrames - 1);
+                	// reset play head if looping, otherwise stop
+                    if (isLooping) {
+                    	jump(0);
+                    }else{
+                    	stop();
+                    }
                     
-                    if (finishedPlaying) {
-                        
-                    	if(onSequencePlayedMethod != null){
-                    		
-                    		// try to call main sketch
-                			try {
-                				onSequencePlayedMethod.invoke(parent, this);
-                			}catch (Exception e) {
-                				System.err.println("Error, disabling onSequencePlayed()");
-                				System.err.println(e.getLocalizedMessage());
-                				onSequencePlayedMethod = null;
-                			}
-                    		
-                    	}
-                    	
-                    	// reset playhead if looping, otherwise stop
-                        if (isLooping) {
-                        	jump(0);
-                        }else{
-                        	stop();
-                        }
-                        
-                    }else jump(currentFrame + 1);
-//                }
+                } else {
+                	// gotoAndStop(nextFrame);
+                	jump(currentFrame + 1);
+                }
             }
         }
     }
     
     /**
-     * 
+     * stop playback and thread
      */
     public void dispose() {
     	isThreadRunning = false;
         stop();
-        runner = null;
+        playbackThread = null;
     }
     
     /**
-     * 
+     * stop playback and remove all frames
      */
     public void clean(){
         stop();
@@ -286,19 +320,17 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
-     * 
+     * jump to a different frame (within the available number of frames this sequence holds)
      * @param where
      */
     public void jump(int where) {
         if (numFrames > where) {
             currentFrame = where;
-            //TODO: is this needed ?
-//            loadPixels();
             
             if(frames[currentFrame].width > 0 && frames[currentFrame].height > 0){
                 
             	try{
-                    System.arraycopy(frames[currentFrame].pixels, 0, pixels, 0, width * height);
+                    System.arraycopy(frames[currentFrame].pixels, 0, pixels, 0, numPixels);
                 }catch(Exception e){
                     e.printStackTrace();
                 }
@@ -309,12 +341,11 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
             }
             updatePixels();
 
-            lastUpdate = parent.millis();
         }
     }
     
     /**
-     * 
+     * stop playback and reset to first frame
      */
     public void stop() {
         isPlaying = false;
@@ -322,14 +353,14 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
-     * 
+     * play/resume
      */
     public void play() {
         isPlaying = true;
     }
     
     /**
-     * 
+     * resume playback and loop
      */
     public void loop() {
         isPlaying = true;
@@ -337,40 +368,44 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
-     * 
+     * set loop flag to true, but don't resume playback yet
      */
     public void loopOnly() {
         isLooping = true;
     }
     
     /**
-     * 
+     * stop looping
      */
     public void noLoop() {
         isLooping = false;
     }
     
     /**
-     * 
+     * pause playback
      */
     public void pause() {
         isPlaying = false;
     }
     
     /**
-     * 
+     * change playback rate
      * @param ms
      */
     public void setDelay(int ms){
         if(ms < 0) return;
         delay = ms;
     }
-
+    
+    /**
+     * returns the array of loaded images
+     * @return
+     */
     public PImage[] getPImages() {
         return frames;
     }
     /**
-     * 
+     * returns true if the playhead is automatically incremented
      * @return
      */
     public boolean isPlaying() {
@@ -378,7 +413,7 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
-     * 
+     * returns the current frame (image index) the sequence is currently at
      * @return
      */
     public int currentFrame() {
@@ -386,7 +421,7 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
-     * 
+     * returns the total number of frames (images) this sequence holds
      * @return
      */
     public int totalFrames(){
@@ -394,7 +429,7 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
-     * 
+     * returns true if the sequence is set to repeat from the first frame at the end of the last frame
      * @return
      */
     public boolean isLooping() {
@@ -402,7 +437,7 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
-     * 
+     * returns true if the last frame was reached
      * @return
      */
     public boolean hasFinishedPlaying(){
@@ -410,7 +445,7 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
-     * 
+     * returns true as long as images have yet to fully load
      * @return
      */
     public boolean isLoading(){
@@ -418,6 +453,8 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
+     * returns a normalized value (0.0 to 1.0)
+     * where 0 = 0%, 0.5 = 50%, 1.0 = 100%
      * 
      * @return
      */
@@ -425,11 +462,15 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
         return loadProgress;
     }
     
+    /**
+     * String representation
+     */
     public String toString(){
     	return "[ISPlayer name=" + name + "]";
     }
     
     /**
+     * Get the name of the sequence (typically the folder name)
      * 
      * @return
      */
@@ -438,6 +479,7 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
     }
     
     /**
+     * rename the sequence
      * 
      * @param newName
      */
@@ -455,8 +497,8 @@ public class ISPlayer extends PImage implements PConstants,Runnable {
 		return VERSION;
 	}
     
- // "kindly borrowed" from https://github.com/processing/processing/blob/master/java/libraries/serial/src/processing/serial/Serial.java
- 	private Method findCallback(final String name,Class argumentType) {
+	// "kindly borrowed" from https://github.com/processing/processing/blob/master/java/libraries/serial/src/processing/serial/Serial.java
+ 	private Method findCallback(final String name,Class<ISPlayer> argumentType) {
  		try {
  	      return parent.getClass().getMethod(name, argumentType);
  	    } catch (Exception e) {
