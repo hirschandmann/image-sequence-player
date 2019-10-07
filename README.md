@@ -23,7 +23,7 @@ ISPlayer player;
 
 void setup() {
   size(640, 360);
-  // create instance and load all valid images from the data/PT_Teddy folder
+  // create instance and load all valid images from the data folder
   player = new ISPlayer(this,dataPath("name-of-image-folder-in-data"));
 }
 
