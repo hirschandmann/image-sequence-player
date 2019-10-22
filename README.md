@@ -13,6 +13,20 @@ however there are cases where finer control is needed, such as:
 
 Contributions welcome.
 
+### Installation:
+
+### Method 1: via Contribution Manager
+
+1. Go to **Processing > Sketch > Import Library... > Add Library...**
+2. Type *Image Sequence Player* in the search field
+3. Press **Install**
+
+### Method 2: Manual install:
+
+1. Download [ImageSequencePlayer.zip](https://github.com/hirschandmann/image-sequence-player/releases/download/latest/ImageSequencePlayer.zip)
+2. Unzip into **Documents > Processing > libraries**
+3. Restart Processing (if it was already running)
+
 ### Minimal Example:
 
 ```processing
@@ -48,8 +62,9 @@ The library is heavily influenced by [Patrick Meister's gifAnimation library](ht
 
 The examples include [James Patterson's animation](http://presstube.com/hello/) from Processing > Examples > Topics > Animation > AnimatedSprite
 
-The libray has been developed at [Hirsch & Mann](http://hirschandmann.com/work) and used on multiple projects
+Developed by George Profenza at [Hirsch & Mann](http://hirschandmann.com) and used on multiple projects such as:
 
-![Imagine Fest Soutbank Centre 2014](https://www.hirschandmann.com/wp-content/uploads/2017/06/Hirschandmann_IMG_featured01_TIMEMACHINE.jpg)
+- [Imagine Festival Time Machine at Southbank Centre](https://www.hirschandmann.com/portfolio_page/time-machine/)![Imagine Fest Soutbank Centre 2014](https://www.hirschandmann.com/wp-content/uploads/2017/06/Hirschandmann_IMG_featured01_TIMEMACHINE.jpg)
 
-![Playable City Bristol 2018](https://www.hirschandmann.com/wp-content/uploads/2018/08/city_website_0003_1150976_JonAitken_edit-001.jpg)
+- [Playable City Bristol](https://www.hirschandmann.com/portfolio_page/making-smiles-in-the-city/)![Playable City Bristol 2018](https://www.hirschandmann.com/wp-content/uploads/2018/08/city_website_0003_1150976_JonAitken_edit-001.jpg)(image credits: Jon Aitken)
+- and [more](http://hirschandmann.com/work)
